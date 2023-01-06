@@ -1,25 +1,23 @@
+import { Injectable, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import * as SQS from 'aws-sdk/clients/sqs';
 import { Consumer } from 'sqs-consumer';
 import { Producer } from 'sqs-producer';
-import type { QueueAttributeName } from 'aws-sdk/clients/sqs';
-import * as SQS from 'aws-sdk/clients/sqs';
-import { Injectable, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 
-import { SqsConfig } from './sqs.config';
-import { QueueName, SqsMetadata, SqsQueueOption, SqsQueueType } from './sqs.types';
-import { SqsStorage } from './sqs.storage';
-import { Message } from './sqs.interfaces';
 import { SqsMetadataScanner } from './sqs-metadata.scanner';
+import { Message, SqsConfigT } from './sqs.interfaces';
+import { QueueName, SqsMetadata, SqsQueueOption, SqsQueueType } from './sqs.types';
 
+import type { QueueAttributeName } from 'aws-sdk/clients/sqs';
 @Injectable()
 export class SqsService implements OnApplicationBootstrap, OnModuleDestroy {
   public readonly consumers = new Map<QueueName, Consumer>();
   public readonly producers = new Map<QueueName, Producer>();
 
-  public constructor(private readonly scanner: SqsMetadataScanner, private readonly sqsConfig: SqsConfig) {}
+  public constructor(private readonly scanner: SqsMetadataScanner, private readonly sqsConfig: SqsConfigT) {}
 
   public async onApplicationBootstrap(): Promise<void> {
-    const sqsConfig = this.sqsConfig.option;
-    const sqsQueueOptions = SqsStorage.getQueueOptions();
+    const sqsConfig = this.sqsConfig.cfg.option;
+    const sqsQueueOptions = this.sqsConfig.queue;
     const sqs: SQS = new SQS(sqsConfig);
 
     const sqsQueueConsumerOptions = sqsQueueOptions.filter(
@@ -43,7 +41,7 @@ export class SqsService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private createConsumer(option: SqsQueueOption, sqs: AWS.SQS) {
-    const { endpoint, accountNumber, region } = this.sqsConfig.option;
+    const { endpoint, accountNumber, region } = this.sqsConfig.cfg.option;
     const { name, consumerOptions } = option;
     const metadata: SqsMetadata = this.scanner.sqsMetadatas.get(name);
     if (!metadata) {
@@ -75,7 +73,7 @@ export class SqsService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private createProducer(option: SqsQueueOption, sqs: AWS.SQS) {
-    const { endpoint, accountNumber, region } = this.sqsConfig.option;
+    const { endpoint, accountNumber, region } = this.sqsConfig.cfg.option;
     const { name, producerOptions } = option;
     if (this.producers.has(name)) {
       throw new Error(`Producer already exists: ${name}`);
